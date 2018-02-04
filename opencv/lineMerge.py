@@ -152,21 +152,19 @@ class GetLine:
         height, width = img.shape[:2]
         #flag 1:row, 0:col
         if flag == 0:
-            rows = [[[0, 0, width, 0]]]
+            rows=[]
             for i, line in enumerate(lines):
                 # print line
                 avg = (line[0][1] + line[0][3]) / 2
                 rows.append([[line[0][0], avg, line[0][2], avg]])
                 # cv2.line(img_merged_lines, (line[0][0], line[0][1]), (line[0][2], line[0][3]), (0, 0, 255), 2)
-            rows.append([[0, height, width, height]])
             return rows
         else:
-            cols = [[[0, 0, 0, height]]]
+            cols=[]
             for i, line in enumerate(lines):
                 # print line
                 avg = (line[0][0] + line[0][2]) / 2
                 cols.append([[avg, line[0][1], avg, line[0][3]]])
-            cols.append([[width, 0, width, height]])
             return cols
 
 class Html:
@@ -174,7 +172,8 @@ class Html:
         self.text = None
         self.css = None
         self.f=[]
-
+        self.divNum=0
+        self.rectList=[]
     def startHtml(self, html, css):#input file Name > html, css
         if html !=None:
             self.f.append(open(html+".html", "w"))
@@ -184,13 +183,16 @@ class Html:
             self.text += "<head><link rel=stylesheet type=text/css href=test.css></head>\n"
             self.css=""
         self.text += "<body>\n"
-
+        
     def putHtml(self,text):
         self.text += text
-
+        
     def putCss(self,css):
         self.css += css
-
+        
+    def upDivNum(self,num):
+        self.divNum+=num
+        
     def endHtml(self):
         self.text += "\n</body>\n</html>"
         if self.text != None:
@@ -215,6 +217,114 @@ class Html:
             div += plus
         div+="}\n"
         return div
+    def preventOverlap(self,rect):
+        for rectL in self.rectList:
+            if rect==rectL:
+                return False
+        self.rectList.append(rect)
+        print("rect:",rect)
+        return True
+
+    def makeCols(self, html,madeRows, cols, img, insertL, appendL):
+        inCols=[]
+        width,height= (insertL[0][2]-insertL[0][0]),(appendL[0][3]-insertL[0][3])
+        print
+        for i, row in enumerate(madeRows):
+            rectx1,recty1,rectx2,recty2 = row[0][0],row[0][1],row[0][2],row[0][3]
+            rowGaps = row[1]
+            colGaps = []
+            for col in cols:
+                x1,y1,x2,y2 = col[0][0],col[0][1],col[0][2],col[0][3]
+                if (abs(recty1 - y1)<30 and abs(recty2-y2)<30)and (rectx1-30<x1 and x1 < rectx2+30):
+                    inCols.append([[x1,recty1,x2,recty2]])
+                elif recty1-30<y1 and y2<recty2+30:
+                    colGaps.append([[x1,y1,x2,y2]])
+
+            if len(inCols)==0:
+                if(self.preventOverlap([[rectx1,recty1,rectx2,recty2]])==True):
+                    cv2.line(img, (rectx1, recty1), (rectx2, recty1), (255, 50, 50), 8)
+                    cv2.line(img, (rectx1, recty2), (rectx2, recty2), (255, 50, 50), 8)
+                    html.putHtml("<div id=div" + str(self.divNum) + ">"+str(self.divNum)+"</div>\n")
+                    html.putCss(html.divCss(self.divNum, html.mappingP(rectx2, width, False),
+                                            html.mappingP(recty2-recty1, False, height), None))
+                    html.upDivNum(+1)
+            else:
+                flag=False
+                if(self.preventOverlap([[rectx1, recty1, rectx2, recty2]])):
+                    html.putHtml("<div id=div" + str(self.divNum) + ">\n")
+                    html.putCss(html.divCss(self.divNum, html.mappingP(rectx2-rectx1, width, False),
+                                            html.mappingP(recty2-recty1, False, height), None))
+                    html.upDivNum(+1)
+                    flag=True
+
+                inCols.insert(0, [[rectx1,recty1,rectx1,recty2]])
+                inCols.append([[rectx2,recty1,rectx2,recty2]])
+                inCols = np.squeeze(inCols)
+
+                print("top")
+                for j,_ in enumerate(inCols[:-1]):
+                    lx1,ly1,lx2,ly2 = inCols[j][0],inCols[j][1],inCols[j][2],inCols[j][3]
+                    rx1,ry1,rx2,ry2 = inCols[j+1][0],inCols[j+1][1],inCols[j+1][2],inCols[j+1][3]
+
+                    if rowGaps != []:
+
+                        flag2=False
+                        if (self.preventOverlap([[lx1, ly1, rx2, ry2]])):
+                            cv2.line(img, (lx1, ly1), (lx2, ly2), (255, 50, 50), 8)
+                            cv2.line(img, (rx1, ry1), (rx2, ry2), (255, 50, 50), 8)
+                            html.putHtml("<div id=div" + str(self.divNum) + ">")
+                            html.putCss(html.divCss(self.divNum, html.mappingP(rx1-lx1,width, False),
+                                                    html.mappingP(height, False, height), "\tfloat: left;\n"))
+                            html.upDivNum(+1)
+                            lastDiv=self.divNum
+                            flag2=True
+
+                        self.makeRows(html, rowGaps, colGaps, img, [[lx1, ly1, rx1, ry1]], [[lx2, ly2, rx2, ry2]])
+
+                        if flag2==True:
+                            if lastDiv==self.divNum:
+                                html.putHtml(str(self.divNum))
+                            html.putHtml("</div>\n")
+                    else:
+
+                        if (self.preventOverlap([[lx1, ly1, rx2, ry2]])):
+                            cv2.line(img, (lx1, ly1), (lx2, ly2), (255, 50, 50), 8)
+                            cv2.line(img, (rx1, ry1), (rx2, ry2), (255, 50, 50), 8)
+                            html.putHtml("<div id=div" + str(self.divNum) + ">"+str(self.divNum)+"</div>\n")
+                            html.putCss(html.divCss(self.divNum, html.mappingP(rx1-lx1-1,width, False),
+                                                    html.mappingP(height, False, height), "\tfloat: left;\n"))
+                            html.upDivNum(+1)
+                        pass
+                #########################################
+                if flag==True:
+                    html.putHtml("</div>\n")
+                print("bot")
+
+            madeRows[i][2]= inCols
+            inCols = []
+
+    def makeRows(self,html,rows,cols,img,insertL,appendL):
+        rows.insert(0,insertL)
+        rows.append(appendL)
+        madeRows=[]
+        for i,trow in enumerate(rows[:-1]):
+            opFlag=False
+            gaprow=[]
+            tx1, ty1, tx2, ty2 = trow[0][0], trow[0][1], trow[0][2], trow[0][3]  # top
+            for brow in rows[i+1:]:
+                bx1, by1, bx2, by2 = brow[0][0], brow[0][1], brow[0][2], brow[0][3]  # bottom
+                if(abs(tx1-bx1)<30 and abs(tx2-bx2)<30)and (insertL[0][0]-30 < bx1 and bx1 < insertL[0][2]+30) and (insertL[0][0]-30 < bx2 and bx2 < insertL[0][2]+30):
+                    opFlag = True
+                    if abs(insertL[0][0]-tx1)<30 and abs(insertL[0][0]-bx1)<30:
+                        tx1=bx1=insertL[0][0]
+                    if abs(insertL[0][2]-tx2)<30 and abs(insertL[0][2]-bx2)<30:
+                        tx2=bx2=insertL[0][2]
+                    break
+                elif (insertL[0][0]-30 < bx1 and bx1 < insertL[0][2]+30) and (insertL[0][0]-30 < bx2 and bx2 < insertL[0][2]+30):
+                    gaprow.append(brow)
+            if opFlag ==True:
+                madeRows.append([[tx1,ty1,bx2,by2],gaprow,None])
+        self.makeCols(html,madeRows,cols,img,insertL,appendL)
 
 
 def process_lines(image_src):
@@ -260,6 +370,9 @@ def process_lines(image_src):
     _lines_x = sorted(_lines_x, key=lambda _line: _line[0][0])
     _lines_y = sorted(_lines_y, key=lambda _line: _line[0][1])
 
+    _lines_x = sorted(_lines_x, key=lambda _line: _line[0][1])
+    _lines_y = sorted(_lines_y, key=lambda _line: _line[0][0])
+
     # -------------merge lines
     merged_lines_x = lineMerge.merge_lines_pipeline_2(_lines_x)
     merged_lines_y = lineMerge.merge_lines_pipeline_2(_lines_y)
@@ -268,6 +381,7 @@ def process_lines(image_src):
     merged_lines_all.extend(merged_lines_x)
     merged_lines_all.extend(merged_lines_y)
     print("process groups lines", len(_lines), len(merged_lines_all))
+    print("==========================================================================")
     merged_lines_all=np.reshape(merged_lines_all,(-1,4))
 
     # ----------find gradient
@@ -279,101 +393,17 @@ def process_lines(image_src):
     cols=getLine.avgMapping(colLines,1,img)
 
     ##############
-    pad=15
+
     html = Html()
     html.startHtml("test", "test")
-    divI=0
-    for index, row in enumerate(rows[0:len(rows)]):
-        flag=True
-        if index<len(rows)-1:
-            i = index+1
-        else:
-            flag= False
-        while(abs(row[0][0]-rows[i][0][0])>30 and abs(row[0][2]-rows[i][0][2])>30):#find matching line
-            if i < len(rows) - 1:
-                i = i + 1
-            else:
-                flag = False
-                break
-
-        tx1,ty1,tx2,ty2=row[0][0],row[0][1],row[0][2],row[0][3]
-        bx1,by1,bx2,by2 = rows[i][0][0],rows[i][0][1],rows[i][0][2],rows[i][0][3]
-
-        if flag==True:
-            if i>1:
-                cv2.line(img_merged_lines, (tx1, ty1), (tx2, ty2), (255, 50, 50), 8)
-                cv2.putText(img_merged_lines,"row",(tx1, ty1-20),cv2.FONT_HERSHEY_SIMPLEX,0.8,(0,0,0),2)
-            if tx1<25 and bx1<25:
-                tx1 = bx1 = 0
-            if width-tx2<25 and width-bx2<25:
-                tx2 = bx2 = width
-            print ("iteration", i)
-            print ("row", row)
-            print ("rows", rows[i])
-            # if rows[i][0]
-            tmpcol=[]
-            for col in cols[1:len(cols)-1]:
-                print ("col", col)
-                if (tx1<col[0][0]-pad and col[0][0]-pad<tx2):#in high row
-                    if (ty1 <= col[0][1]+pad) and (by1>(col[0][3]-pad)):
-                        print("suc2")
-                        tmpcol.append(col)
-
-            if len(tmpcol)==0:
-                print('rect: ',tx1,ty1,"and",bx2,by2)
-                html.putHtml("<div id=div"+str(divI)+">"+str(divI)+"</div>\n")
-                html.putCss(html.divCss(divI, html.mappingP(bx2,width,False),
-                                        html.mappingP(by2-ty1,False,height),None))
-                divI += 1
-            else:
-                print('rect: ', tx1, ty1, "and", bx2, by2)
-                html.putHtml("<div id=div" + str(divI) + ">\n")
-                html.putCss(html.divCss(divI, html.mappingP(bx2, width, False),
-                                        html.mappingP(by2 - ty1, False, height),None))
-                divI += 1
-
-                for j, mcol in enumerate(tmpcol):
-                    rx1,ry1,rx2,ry2 = tmpcol[j][0][0],tmpcol[j][0][1],tmpcol[j][0][2],tmpcol[j][0][3]
-                    lx1, ly1, lx2, ly2 = tmpcol[j-1][0][0], tmpcol[j-1][0][1], tmpcol[j-1][0][2], tmpcol[j-1][0][3]
-                    cv2.line(img_merged_lines, (rx1, ry1), (rx2, ry2), (255, 50, 50), 8)
-                    cv2.putText(img_merged_lines, "col", (rx1, ry1 + 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8,
-                                (0, 0, 0), 2)
-                    if j==0:
-                        print('rect: ', tx1,ty1, "and", rx2, by2)
-                        html.putHtml("\t<div id=div" + str(divI) + ">" + str(divI) + "</div>\n")
-                        html.putCss(html.divCss(divI, html.mappingP(rx2, width, False),
-                                      100,"\tfloat:left;\n\t"))
-
-                        divI += 1
-                    if j!=0:
-                        print('rect: ', tmpcol[j-1][0][0], ty1, "and", rx2, ry2)
-                        html.putHtml("\t<div id=div" + str(divI) + ">" + str(divI) + "</div>\n")
-
-                        html.putCss(html.divCss(divI, html.mappingP(rx2-lx2, width, False),
-                                      100,"\tfloat:left;\n\t"))
-                        # bx1,by1,bx2,by2 = rows[i][0][0],rows[i][0][1],rows[i][0][2],rows[i][0][3]
-                        divI += 1
-                    if j==len(tmpcol)-1:
-                        print('rect: ', lx1, ty1, "and", bx2, by2)
-                        html.putHtml("\t<div id=div" + str(divI) + ">" + str(divI) + "</div>\n")
-                        html.putCss(html.divCss(divI, html.mappingP(bx2-rx2, width, False),
-                                      100,"\tfloat:left;\n\tborder:0;\n\t"))
-
-                        divI += 1
-                    print (j,"jj",len(tmpcol)-1)
-
-                html.putHtml("</div>\n")
-
-        print("------------------------")
-
+    #html.makeLayout(html, rows, cols, img_merged_lines)
+    html.makeRows(html,rows,cols,img_merged_lines,[[0, 0, width, 0]],[[0, height, width, height]])
     html.endHtml()
-
     cv2.imshow("result",img_merged_lines)
     return merged_lines_all
 
 '''-------------------------main------------------------'''
 
-process_lines('c5.jpg')
-print("dddd")
+process_lines('c6.jpg')
 cv2.waitKey(0)
 cv2.destroyAllWindows()
