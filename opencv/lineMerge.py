@@ -183,16 +183,16 @@ class Html:
             self.text += "<head><link rel=stylesheet type=text/css href=test.css></head>\n"
             self.css=""
         self.text += "<body>\n"
-        
+
     def putHtml(self,text):
         self.text += text
-        
+
     def putCss(self,css):
         self.css += css
-        
+
     def upDivNum(self,num):
         self.divNum+=num
-        
+
     def endHtml(self):
         self.text += "\n</body>\n</html>"
         if self.text != None:
@@ -211,12 +211,12 @@ class Html:
     def divCss(self, id,width,height,plus):
         div="#div"+str(id)+"{\n\tborder:0.1px solid blue;\n\t"
         div += "width:"+str(width)+"%;\n\t"
-        print ("w:",width)
         div += "height:" + str(height) + "%;\n"
         if plus != None:
             div += plus
         div+="}\n"
         return div
+
     def preventOverlap(self,rect):
         for rectL in self.rectList:
             if rect==rectL:
@@ -228,7 +228,7 @@ class Html:
     def makeCols(self, html,madeRows, cols, img, insertL, appendL):
         inCols=[]
         width,height= (insertL[0][2]-insertL[0][0]),(appendL[0][3]-insertL[0][3])
-        print
+
         for i, row in enumerate(madeRows):
             rectx1,recty1,rectx2,recty2 = row[0][0],row[0][1],row[0][2],row[0][3]
             rowGaps = row[1]
@@ -244,6 +244,8 @@ class Html:
                 if(self.preventOverlap([[rectx1,recty1,rectx2,recty2]])==True):
                     cv2.line(img, (rectx1, recty1), (rectx2, recty1), (255, 50, 50), 8)
                     cv2.line(img, (rectx1, recty2), (rectx2, recty2), (255, 50, 50), 8)
+                    cv2.putText(img, "div"+str(self.divNum), (rectx1+10,recty1+20), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                                (255, 0, 0), 2)
                     html.putHtml("<div id=div" + str(self.divNum) + ">"+str(self.divNum)+"</div>\n")
                     html.putCss(html.divCss(self.divNum, html.mappingP(rectx2, width, False),
                                             html.mappingP(recty2-recty1, False, height), None))
@@ -251,6 +253,8 @@ class Html:
             else:
                 flag=False
                 if(self.preventOverlap([[rectx1, recty1, rectx2, recty2]])):
+                    cv2.putText(img, "div"+str(self.divNum), (rectx1+10,recty1+20), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                                (255, 0, 0), 2)
                     html.putHtml("<div id=div" + str(self.divNum) + ">\n")
                     html.putCss(html.divCss(self.divNum, html.mappingP(rectx2-rectx1, width, False),
                                             html.mappingP(recty2-recty1, False, height), None))
@@ -267,7 +271,6 @@ class Html:
                     rx1,ry1,rx2,ry2 = inCols[j+1][0],inCols[j+1][1],inCols[j+1][2],inCols[j+1][3]
 
                     if rowGaps != []:
-
                         flag2=False
                         if (self.preventOverlap([[lx1, ly1, rx2, ry2]])):
                             cv2.line(img, (lx1, ly1), (lx2, ly2), (255, 50, 50), 8)
@@ -283,18 +286,24 @@ class Html:
 
                         if flag2==True:
                             if lastDiv==self.divNum:
+                                cv2.putText(img, "div" + str(self.divNum), (lx1 + 10, ly1 + 20),
+                                            cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                                            (255, 0, 0), 2)
                                 html.putHtml(str(self.divNum))
                             html.putHtml("</div>\n")
                     else:
-
                         if (self.preventOverlap([[lx1, ly1, rx2, ry2]])):
                             cv2.line(img, (lx1, ly1), (lx2, ly2), (255, 50, 50), 8)
                             cv2.line(img, (rx1, ry1), (rx2, ry2), (255, 50, 50), 8)
+                            cv2.putText(img, "div" + str(self.divNum), (lx1 + 10, ly1 + 20),
+                                        cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                                        (255, 0, 0), 2)
                             html.putHtml("<div id=div" + str(self.divNum) + ">"+str(self.divNum)+"</div>\n")
                             html.putCss(html.divCss(self.divNum, html.mappingP(rx1-lx1-1,width, False),
                                                     html.mappingP(height, False, height), "\tfloat: left;\n"))
                             html.upDivNum(+1)
                         pass
+                    print("\n")
                 #########################################
                 if flag==True:
                     html.putHtml("</div>\n")
@@ -302,32 +311,51 @@ class Html:
 
             madeRows[i][2]= inCols
             inCols = []
+    def log(self,insertL,str):
+        if insertL==[[970, 260, 230, 386]]:
+            print (str)
 
     def makeRows(self,html,rows,cols,img,insertL,appendL):
         rows.insert(0,insertL)
         rows.append(appendL)
         madeRows=[]
+        tmpRow = []
         for i,trow in enumerate(rows[:-1]):
             opFlag=False
             gaprow=[]
+            if trow==tmpRow:
+                trow=changeRow
             tx1, ty1, tx2, ty2 = trow[0][0], trow[0][1], trow[0][2], trow[0][3]  # top
-            for brow in rows[i+1:]:
+            for j,brow in enumerate(rows[i+1:]):
                 bx1, by1, bx2, by2 = brow[0][0], brow[0][1], brow[0][2], brow[0][3]  # bottom
-                if(abs(tx1-bx1)<30 and abs(tx2-bx2)<30)and (insertL[0][0]-30 < bx1 and bx1 < insertL[0][2]+30) and (insertL[0][0]-30 < bx2 and bx2 < insertL[0][2]+30):
+                if(abs(tx1-bx1)<30 and abs(tx2-bx2)<30)and\
+                        (insertL[0][0]-30 < bx1 and bx1 < insertL[0][2]+30)and\
+                        (insertL[0][0]-30 < bx2 and bx2 < insertL[0][2]+30):
                     opFlag = True
                     if abs(insertL[0][0]-tx1)<30 and abs(insertL[0][0]-bx1)<30:
                         tx1=bx1=insertL[0][0]
                     if abs(insertL[0][2]-tx2)<30 and abs(insertL[0][2]-bx2)<30:
                         tx2=bx2=insertL[0][2]
                     break
-                elif (insertL[0][0]-30 < bx1 and bx1 < insertL[0][2]+30) and (insertL[0][0]-30 < bx2 and bx2 < insertL[0][2]+30):
+                elif (abs(tx1-insertL[0][0]<30) and abs(tx2-insertL[0][2]<30))and\
+                        ((abs(bx1-insertL[0][0])<30 and (insertL[0][2] < bx2))or\
+                        (bx1 < insertL[0][0] and abs(insertL[0][2] - bx2) < 30)or\
+                        (bx1 < insertL[0][0] and insertL[0][2] < bx2)):
+                    opFlag = True
+                    tx1 = bx1 = insertL[0][0]
+                    tx2 = bx2 = insertL[0][2]
+                    tmpRow = brow
+                    changeRow = [[bx1,by1,bx2,by2]]
+                    break
+                elif (insertL[0][0]-30 < bx1 and bx1 < insertL[0][2]+30)and\
+                        (insertL[0][0]-30 < bx2 and bx2 < insertL[0][2]+30):
                     gaprow.append(brow)
+                opFlag = False
             if opFlag ==True:
                 madeRows.append([[tx1,ty1,bx2,by2],gaprow,None])
         self.makeCols(html,madeRows,cols,img,insertL,appendL)
 
-
-def process_lines(image_src):
+def main(image_src):
     #-------------preProcessing
     lineMerge=LineMerge()
     getLine = GetLine()
@@ -400,10 +428,8 @@ def process_lines(image_src):
     html.makeRows(html,rows,cols,img_merged_lines,[[0, 0, width, 0]],[[0, height, width, height]])
     html.endHtml()
     cv2.imshow("result",img_merged_lines)
-    return merged_lines_all
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
 
 '''-------------------------main------------------------'''
-
-process_lines('c6.jpg')
-cv2.waitKey(0)
-cv2.destroyAllWindows()
+main('c9.jpg')
