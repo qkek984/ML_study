@@ -209,7 +209,10 @@ class Html:
             return int(float(p)/float(height)*100)
 
     def divCss(self, id,width,height,plus):
-        div="#div"+str(id)+"{\n\tborder:0.1px solid blue;\n\t"
+        div="#div"+str(id)+"{\n\t"
+        #div+="border:0.1px solid blue;\n\t"
+        #div += "background-color:blue;\n\t"
+        #div += "padding:-30px;\n\t"
         div += "width:"+str(width)+"%;\n\t"
         div += "height:" + str(height) + "%;\n"
         if plus != None:
@@ -237,6 +240,11 @@ class Html:
                 x1,y1,x2,y2 = col[0][0],col[0][1],col[0][2],col[0][3]
                 if (abs(recty1 - y1)<30 and abs(recty2-y2)<30)and (rectx1-30<x1 and x1 < rectx2+30):
                     inCols.append([[x1,recty1,x2,recty2]])
+                elif (y1<recty1 and recty2 < y2) or\
+                        (abs(y1-recty1)<30 and recty2 < y2)or\
+                        (y1<recty1 and abs(recty2 - y2)<30):
+                    inCols.append([[x1, recty1, x2, recty2]])
+                    pass
                 elif recty1-30<y1 and y2<recty2+30:
                     colGaps.append([[x1,y1,x2,y2]])
 
@@ -246,15 +254,19 @@ class Html:
                     cv2.line(img, (rectx1, recty2), (rectx2, recty2), (255, 50, 50), 8)
                     cv2.putText(img, "div"+str(self.divNum), (rectx1+10,recty1+20), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
                                 (255, 0, 0), 2)
+
                     html.putHtml("<div id=div" + str(self.divNum) + ">"+str(self.divNum)+"</div>\n")
                     html.putCss(html.divCss(self.divNum, html.mappingP(rectx2, width, False),
                                             html.mappingP(recty2-recty1, False, height), None))
+                    print("div" + str(self.divNum))
                     html.upDivNum(+1)
             else:
                 flag=False
                 if(self.preventOverlap([[rectx1, recty1, rectx2, recty2]])):
-                    cv2.putText(img, "div"+str(self.divNum), (rectx1+10,recty1+20), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
-                                (255, 0, 0), 2)
+                    #cv2.putText(img, "div"+str(self.divNum), (rectx1+10,recty1+20), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                               # (255, 0, 0), 2)
+                    cv2.line(img, (rectx1, recty2), (rectx2, recty2), (255, 50, 50), 8)
+                    cv2.line(img, (rectx1, recty2), (rectx2, recty2), (255, 50, 50), 8)
                     html.putHtml("<div id=div" + str(self.divNum) + ">\n")
                     html.putCss(html.divCss(self.divNum, html.mappingP(rectx2-rectx1, width, False),
                                             html.mappingP(recty2-recty1, False, height), None))
@@ -286,10 +298,11 @@ class Html:
 
                         if flag2==True:
                             if lastDiv==self.divNum:
-                                cv2.putText(img, "div" + str(self.divNum), (lx1 + 10, ly1 + 20),
+                                cv2.putText(img, "div" + str(self.divNum-1), (lx1 + 10, ly1 + 20),
                                             cv2.FONT_HERSHEY_SIMPLEX, 0.5,
                                             (255, 0, 0), 2)
-                                html.putHtml(str(self.divNum))
+                                print("div" + str(self.divNum-1))
+                                html.putHtml(str(self.divNum-1))
                             html.putHtml("</div>\n")
                     else:
                         if (self.preventOverlap([[lx1, ly1, rx2, ry2]])):
@@ -299,8 +312,9 @@ class Html:
                                         cv2.FONT_HERSHEY_SIMPLEX, 0.5,
                                         (255, 0, 0), 2)
                             html.putHtml("<div id=div" + str(self.divNum) + ">"+str(self.divNum)+"</div>\n")
-                            html.putCss(html.divCss(self.divNum, html.mappingP(rx1-lx1-1,width, False),
+                            html.putCss(html.divCss(self.divNum, html.mappingP(rx1-lx1,width, False),
                                                     html.mappingP(height, False, height), "\tfloat: left;\n"))
+                            print("div" + str(self.divNum))
                             html.upDivNum(+1)
                         pass
                     print("\n")
