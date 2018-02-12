@@ -1,6 +1,7 @@
 import cv2
 import math
 import numpy as np
+import random
 
 class LineMerge:
     def get_lines(self,lines_in):
@@ -29,7 +30,6 @@ class LineMerge:
                             #print("angles", orientation_i, orientation_j)
                             #print(int(abs(orientation_i - orientation_j)))
                             group.append(line)
-
                             create_new_group = False
                             group_updated = True
                             break
@@ -133,6 +133,44 @@ class LineMerge:
                                   line1[0][0], line1[0][1], line1[1][0], line1[1][1])
         return min(dist1,dist2,dist3,dist4)
 
+    def mergeLine(self,img,lines):
+        # l[0] - line; l[1] - angle
+        for line in self.get_lines(lines):
+            leftx, boty, rightx, topy = line
+            cv2.line(img, (leftx, boty), (rightx, topy), (0, 0, 255), 1)
+        # cv2.imshow("lines", img)
+        # -------------prepare
+        _lines = []
+        for _line in self.get_lines(lines):
+            _lines.append([(_line[0], _line[1]), (_line[2], _line[3])])
+        # ------------sort
+        _lines_x = []
+        _lines_y = []
+        for line_i in _lines:
+            orientation_i = math.atan2((line_i[0][1] - line_i[1][1]), (line_i[0][0] - line_i[1][0]))
+            if (abs(math.degrees(orientation_i)) > 45) and abs(math.degrees(orientation_i)) < (90 + 45):
+                _lines_y.append(line_i)
+            else:
+                _lines_x.append(line_i)
+
+        _lines_x = sorted(_lines_x, key=lambda _line: _line[0][0])
+        _lines_y = sorted(_lines_y, key=lambda _line: _line[0][1])
+
+        _lines_x = sorted(_lines_x, key=lambda _line: _line[0][1])
+        _lines_y = sorted(_lines_y, key=lambda _line: _line[0][0])
+
+        # -------------merge lines
+        merged_lines_x = self.merge_lines_pipeline_2(_lines_x)
+        merged_lines_y = self.merge_lines_pipeline_2(_lines_y)
+
+        merged_lines_all = []
+        merged_lines_all.extend(merged_lines_x)
+        merged_lines_all.extend(merged_lines_y)
+        print("process groups lines", len(_lines), len(merged_lines_all))
+        print("==========================================================================")
+        merged_lines_all = np.reshape(merged_lines_all, (-1, 4))
+        return merged_lines_all
+
 class GetLine:
     def limitGradient(self,lines,maxG,minG):
         # row-----------------------------------------------------------------------------------------
@@ -168,11 +206,16 @@ class GetLine:
             return cols
 
 class Html:
-    def __init__(self):
+    def __init__(self,img):
+        height, width = img.shape[:2]
+        self.threshold = int(((height+width)/2)*0.03)
+        #self.threshold=30
+        print(self.threshold)
         self.text = None
         self.css = None
         self.f=[]
         self.divNum=0
+        self.divList=[]
         self.rectList=[]
     def startHtml(self, html, css):#input file Name > html, css
         if html !=None:
@@ -180,7 +223,7 @@ class Html:
             self.text = "<html>\n"
         if css != None:
             self.f.append(open(css+".css", "w"))
-            self.text += "<head><link rel=stylesheet type=text/css href=test.css></head>\n"
+            self.text += "<head><link rel=stylesheet type=text/css href="+css+".css></head>\n"
             self.css=""
         self.text += "<body>\n"
 
@@ -204,16 +247,19 @@ class Html:
 
     def mappingP(self, p,width,height):
         if width != False:
-            return int(float(p)/float(width)*100)
+            return (float(p) / float(width) * 100)
         elif height != False:
-            return int(float(p)/float(height)*100)
+            return (float(p) / float(height) * 100)
 
     def divCss(self, id,width,height,plus):
+        r,g,b=str(random.randrange(10,99)),str(random.randrange(10,99)),str(random.randrange(10,99))
         div="#div"+str(id)+"{\n\t"
-        #div+="border:0.1px solid blue;\n\t"
-        #div += "background-color:blue;\n\t"
+        div += "display:table;\n\t"
+        div += "border-collapse: collapse;\n\t"
+        div += "border:0.1px solid blue;\n\t"
+        #div += "background-color:#"+r+g+b+";\n\t"
         #div += "padding:-30px;\n\t"
-        div += "width:"+str(width)+"%;\n\t"
+        div += "width:"+str(width-0.9)+"%;\n\t"
         div += "height:" + str(height) + "%;\n"
         if plus != None:
             div += plus
@@ -224,52 +270,58 @@ class Html:
         for rectL in self.rectList:
             if rect==rectL:
                 return False
+            '''
+            if abs(rect[0][2]-rect[0][0])<self.threshold*2:
+                return False
+            elif abs(rect[0][3]-rect[0][1])<self.threshold*2:
+                return False
+            '''
         self.rectList.append(rect)
         print("rect:",rect)
         return True
 
     def makeCols(self, html,madeRows, cols, img, insertL, appendL):
+        th=self.threshold
         inCols=[]
         width,height= (insertL[0][2]-insertL[0][0]),(appendL[0][3]-insertL[0][3])
-
         for i, row in enumerate(madeRows):
-            rectx1,recty1,rectx2,recty2 = row[0][0],row[0][1],row[0][2],row[0][3]
+            rectx1, recty1, rectx2, recty2 = row[0][0], row[0][1], row[0][2], row[0][3]
             rowGaps = row[1]
             colGaps = []
             for col in cols:
                 x1,y1,x2,y2 = col[0][0],col[0][1],col[0][2],col[0][3]
-                if (abs(recty1 - y1)<30 and abs(recty2-y2)<30)and (rectx1-30<x1 and x1 < rectx2+30):
+                if (abs(recty1 - y1)<th and abs(recty2-y2)<th)and (rectx1-th<x1 and x1 < rectx2+th):
                     inCols.append([[x1,recty1,x2,recty2]])
                 elif (y1<recty1 and recty2 < y2) or\
-                        (abs(y1-recty1)<30 and recty2 < y2)or\
-                        (y1<recty1 and abs(recty2 - y2)<30):
+                        (abs(y1-recty1)<th and recty2 < y2)or\
+                        (y1<recty1 and abs(recty2 - y2)<th):
                     inCols.append([[x1, recty1, x2, recty2]])
                     pass
-                elif recty1-30<y1 and y2<recty2+30:
+                elif recty1-th<y1 and y2<recty2+th:
                     colGaps.append([[x1,y1,x2,y2]])
 
             if len(inCols)==0:
                 if(self.preventOverlap([[rectx1,recty1,rectx2,recty2]])==True):
-                    cv2.line(img, (rectx1, recty1), (rectx2, recty1), (255, 50, 50), 8)
-                    cv2.line(img, (rectx1, recty2), (rectx2, recty2), (255, 50, 50), 8)
-                    cv2.putText(img, "div"+str(self.divNum), (rectx1+10,recty1+20), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
-                                (255, 0, 0), 2)
+                    cv2.line(img, (int(rectx1), int(recty1)), (int(rectx2), int(recty1)), (255, 50, 50), 8)
+                    cv2.line(img, (int(rectx1), int(recty2)), (int(rectx2), int(recty2)), (255, 50, 50), 8)
+                    cv2.putText(img, "div"+str(self.divNum), (int(rectx1)+10,int(recty1)+20), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                                 (255, 0, 0), 2)
 
                     html.putHtml("<div id=div" + str(self.divNum) + ">"+str(self.divNum)+"</div>\n")
-                    html.putCss(html.divCss(self.divNum, html.mappingP(rectx2, width, False),
+                    html.putCss(html.divCss(self.divNum, html.mappingP(rectx2-rectx1, width, False),
                                             html.mappingP(recty2-recty1, False, height), None))
+
                     print("div" + str(self.divNum))
+                    self.divList.append([["div" + str(self.divNum)],[rectx1,recty1,rectx2,recty2]])
                     html.upDivNum(+1)
             else:
                 flag=False
                 if(self.preventOverlap([[rectx1, recty1, rectx2, recty2]])):
-                    #cv2.putText(img, "div"+str(self.divNum), (rectx1+10,recty1+20), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
-                               # (255, 0, 0), 2)
-                    cv2.line(img, (rectx1, recty2), (rectx2, recty2), (255, 50, 50), 8)
-                    cv2.line(img, (rectx1, recty2), (rectx2, recty2), (255, 50, 50), 8)
+                    cv2.line(img, (int(rectx1), int(recty2)), (int(rectx2), int(recty2)), (255, 50, 50), 8)
+                    cv2.line(img, (int(rectx1), int(recty2)), (int(rectx2), int(recty2)), (255, 50, 50), 8)
                     html.putHtml("<div id=div" + str(self.divNum) + ">\n")
                     html.putCss(html.divCss(self.divNum, html.mappingP(rectx2-rectx1, width, False),
-                                            html.mappingP(recty2-recty1, False, height), None))
+                                            html.mappingP(recty2-recty1, False, height), "\tborder:0px;\n\t"))
                     html.upDivNum(+1)
                     flag=True
 
@@ -277,51 +329,57 @@ class Html:
                 inCols.append([[rectx2,recty1,rectx2,recty2]])
                 inCols = np.squeeze(inCols)
 
-                print("top")
                 for j,_ in enumerate(inCols[:-1]):
-                    lx1,ly1,lx2,ly2 = inCols[j][0],inCols[j][1],inCols[j][2],inCols[j][3]
-                    rx1,ry1,rx2,ry2 = inCols[j+1][0],inCols[j+1][1],inCols[j+1][2],inCols[j+1][3]
-
+                    lx1, ly1, lx2, ly2 = inCols[j][0], inCols[j][1], inCols[j][2], inCols[j][3]
+                    rx1, ry1, rx2, ry2 = inCols[j + 1][0], inCols[j + 1][1], inCols[j + 1][2], inCols[j + 1][3]
                     if rowGaps != []:
                         flag2=False
                         if (self.preventOverlap([[lx1, ly1, rx2, ry2]])):
-                            cv2.line(img, (lx1, ly1), (lx2, ly2), (255, 50, 50), 8)
-                            cv2.line(img, (rx1, ry1), (rx2, ry2), (255, 50, 50), 8)
+                            cv2.line(img, (int(lx1), int(ly1)), (int(lx2), int(ly2)), (255, 50, 50), 8)
+                            cv2.line(img, (int(rx1), int(ry1)), (int(rx2), int(ry2)), (255, 50, 50), 8)
                             html.putHtml("<div id=div" + str(self.divNum) + ">")
-                            html.putCss(html.divCss(self.divNum, html.mappingP(rx1-lx1,width, False),
+                            '''
+                            html.putCss(html.divCss(self.divNum, html.mappingP(rx1 - lx1, width, False),
                                                     html.mappingP(height, False, height), "\tfloat: left;\n"))
+                            '''
                             html.upDivNum(+1)
-                            lastDiv=self.divNum
+                            lastDiv=self.divNum-1
                             flag2=True
 
                         self.makeRows(html, rowGaps, colGaps, img, [[lx1, ly1, rx1, ry1]], [[lx2, ly2, rx2, ry2]])
-
                         if flag2==True:
-                            if lastDiv==self.divNum:
-                                cv2.putText(img, "div" + str(self.divNum-1), (lx1 + 10, ly1 + 20),
+                            if lastDiv==self.divNum-1:
+                                html.putCss(html.divCss(lastDiv, html.mappingP(rx1 - lx1, width, False),
+                                                        html.mappingP(height, False, height), "\tfloat: left;\n"))
+                                cv2.putText(img, "div" + str(lastDiv), (int(lx1) + 10, int(ly1) + 20),
                                             cv2.FONT_HERSHEY_SIMPLEX, 0.5,
                                             (255, 0, 0), 2)
-                                print("div" + str(self.divNum-1))
-                                html.putHtml(str(self.divNum-1))
+                                print("div" + str(lastDiv))
+                                html.putHtml(str(lastDiv))
+                                self.divList.append([["div" + str(lastDiv)], [lx1, ly1, rx2, ry2]])
+                            else:
+                                html.putCss(html.divCss(lastDiv, html.mappingP(rx1 - lx1, width, False),
+                                                        html.mappingP(height, False, height), "\tfloat: left;\n\tborder:0px;\n\t"))
+
                             html.putHtml("</div>\n")
+
                     else:
                         if (self.preventOverlap([[lx1, ly1, rx2, ry2]])):
-                            cv2.line(img, (lx1, ly1), (lx2, ly2), (255, 50, 50), 8)
-                            cv2.line(img, (rx1, ry1), (rx2, ry2), (255, 50, 50), 8)
-                            cv2.putText(img, "div" + str(self.divNum), (lx1 + 10, ly1 + 20),
+                            cv2.line(img, (int(lx1), int(ly1)), (int(lx2), int(ly2)), (255, 50, 50), 8)
+                            cv2.line(img, (int(rx1), int(ry1)), (int(rx2), int(ry2)), (255, 50, 50), 8)
+                            cv2.putText(img, "div" + str(self.divNum), (int(lx1) + 10, int(ly1) + 20),
                                         cv2.FONT_HERSHEY_SIMPLEX, 0.5,
                                         (255, 0, 0), 2)
                             html.putHtml("<div id=div" + str(self.divNum) + ">"+str(self.divNum)+"</div>\n")
                             html.putCss(html.divCss(self.divNum, html.mappingP(rx1-lx1,width, False),
                                                     html.mappingP(height, False, height), "\tfloat: left;\n"))
                             print("div" + str(self.divNum))
+                            self.divList.append([["div" + str(self.divNum)], [lx1, ly1, rx2, ry2]])
                             html.upDivNum(+1)
                         pass
-                    print("\n")
                 #########################################
                 if flag==True:
                     html.putHtml("</div>\n")
-                print("bot")
 
             madeRows[i][2]= inCols
             inCols = []
@@ -330,6 +388,7 @@ class Html:
             print (str)
 
     def makeRows(self,html,rows,cols,img,insertL,appendL):
+        th = self.threshold
         rows.insert(0,insertL)
         rows.append(appendL)
         madeRows=[]
@@ -342,18 +401,19 @@ class Html:
             tx1, ty1, tx2, ty2 = trow[0][0], trow[0][1], trow[0][2], trow[0][3]  # top
             for j,brow in enumerate(rows[i+1:]):
                 bx1, by1, bx2, by2 = brow[0][0], brow[0][1], brow[0][2], brow[0][3]  # bottom
-                if(abs(tx1-bx1)<30 and abs(tx2-bx2)<30)and\
-                        (insertL[0][0]-30 < bx1 and bx1 < insertL[0][2]+30)and\
-                        (insertL[0][0]-30 < bx2 and bx2 < insertL[0][2]+30):
+                if(abs(tx1-bx1)<th and abs(tx2-bx2)<th)and\
+                        (insertL[0][0]-th < bx1 and bx1 < insertL[0][2]+th)and\
+                        (insertL[0][0]-th < bx2 and bx2 < insertL[0][2]+th)and\
+                        (abs(insertL[0][0]-bx1)<th and abs(insertL[0][2]-bx2)<th):
                     opFlag = True
-                    if abs(insertL[0][0]-tx1)<30 and abs(insertL[0][0]-bx1)<30:
+                    if abs(insertL[0][0]-tx1)<th and abs(insertL[0][0]-bx1)<th:
                         tx1=bx1=insertL[0][0]
-                    if abs(insertL[0][2]-tx2)<30 and abs(insertL[0][2]-bx2)<30:
+                    if abs(insertL[0][2]-tx2)<th and abs(insertL[0][2]-bx2)<th:
                         tx2=bx2=insertL[0][2]
                     break
-                elif (abs(tx1-insertL[0][0]<30) and abs(tx2-insertL[0][2]<30))and\
-                        ((abs(bx1-insertL[0][0])<30 and (insertL[0][2] < bx2))or\
-                        (bx1 < insertL[0][0] and abs(insertL[0][2] - bx2) < 30)or\
+                elif (abs(tx1-insertL[0][0]<th) and abs(tx2-insertL[0][2]<th))and\
+                        ((abs(bx1-insertL[0][0])<th and (insertL[0][2] < bx2))or\
+                        (bx1 < insertL[0][0] and abs(insertL[0][2] - bx2) < th)or\
                         (bx1 < insertL[0][0] and insertL[0][2] < bx2)):
                     opFlag = True
                     tx1 = bx1 = insertL[0][0]
@@ -361,20 +421,34 @@ class Html:
                     tmpRow = brow
                     changeRow = [[bx1,by1,bx2,by2]]
                     break
-                elif (insertL[0][0]-30 < bx1 and bx1 < insertL[0][2]+30)and\
-                        (insertL[0][0]-30 < bx2 and bx2 < insertL[0][2]+30):
+                elif (insertL[0][0]-th < bx1 and bx1 < insertL[0][2]+th)and\
+                        (insertL[0][0]-th < bx2 and bx2 < insertL[0][2]+th):
                     gaprow.append(brow)
                 opFlag = False
             if opFlag ==True:
                 madeRows.append([[tx1,ty1,bx2,by2],gaprow,None])
         self.makeCols(html,madeRows,cols,img,insertL,appendL)
 
+def roi(img,divList,color3=(255,255,255),color1=255):
+    minX, minY,maxX,maxY = divList[1][0],divList[1][1],divList[1][2],divList[1][3]
+    vertices = np.array([[(minX, minY), (minX, maxY),
+                          (maxX, maxY), (maxX, minY)]], dtype=np.int32)
+    mask = np.zeros_like(img)
+    if len(img.shape) > 2:
+        color = color3
+    else:
+        color = color1
+    cv2.fillPoly(mask,vertices,color)
+    roiImg= cv2.bitwise_and(img,mask)
+    return roiImg
+
 def main(image_src):
-    #-------------preProcessing
+    #declare class
     lineMerge=LineMerge()
     getLine = GetLine()
-
-    img = cv2.imread(image_src)
+    # -------------preProcessing
+    origin = cv2.imread(image_src)
+    img = origin.copy()
     #cv2.imshow('orginal',img)
     height,width = img.shape[:2]
 
@@ -389,58 +463,24 @@ def main(image_src):
     #cv2.imshow("Canny", edges)
     lines = cv2.HoughLinesP(edges, rho=1, theta=np.pi/180, threshold=50,
                             minLineLength=50, maxLineGap=30)
+    merged_lines_all = lineMerge.mergeLine(img,lines)
 
-    # l[0] - line; l[1] - angle
-    for line in lineMerge.get_lines(lines):
-        leftx, boty, rightx, topy = line
-        cv2.line(img, (leftx, boty), (rightx,topy), (0,0,255), 1)
-    #cv2.imshow("lines", img)
-    # -------------prepare
-    _lines = []
-    for _line in lineMerge.get_lines(lines):
-        _lines.append([(_line[0], _line[1]),(_line[2], _line[3])])
-    # ------------sort
-    _lines_x = []
-    _lines_y = []
-    for line_i in _lines:
-        orientation_i = math.atan2((line_i[0][1]-line_i[1][1]),(line_i[0][0]-line_i[1][0]))
-        if (abs(math.degrees(orientation_i)) > 45) and abs(math.degrees(orientation_i)) < (90+45):
-            _lines_y.append(line_i)
-        else:
-            _lines_x.append(line_i)
-
-    _lines_x = sorted(_lines_x, key=lambda _line: _line[0][0])
-    _lines_y = sorted(_lines_y, key=lambda _line: _line[0][1])
-
-    _lines_x = sorted(_lines_x, key=lambda _line: _line[0][1])
-    _lines_y = sorted(_lines_y, key=lambda _line: _line[0][0])
-
-    # -------------merge lines
-    merged_lines_x = lineMerge.merge_lines_pipeline_2(_lines_x)
-    merged_lines_y = lineMerge.merge_lines_pipeline_2(_lines_y)
-
-    merged_lines_all = []
-    merged_lines_all.extend(merged_lines_x)
-    merged_lines_all.extend(merged_lines_y)
-    print("process groups lines", len(_lines), len(merged_lines_all))
-    print("==========================================================================")
-    merged_lines_all=np.reshape(merged_lines_all,(-1,4))
-
-    # ----------find gradient
     img_merged_lines = cv2.imread(image_src)
-
-    rowLines = getLine.limitGradient(merged_lines_all, 185, 175)
-    colLines = getLine.limitGradient(merged_lines_all,95,85)
+    # ----------find gradient
+    rowLines = getLine.limitGradient(merged_lines_all, 185, 175)#Limit degree 185~175
+    colLines = getLine.limitGradient(merged_lines_all,95,85)#Limit degree 95~85
     rows=getLine.avgMapping(rowLines,0,img)
     cols=getLine.avgMapping(colLines,1,img)
 
     ##############
 
-    html = Html()
+    html = Html(img)
     html.startHtml("test", "test")
-    #html.makeLayout(html, rows, cols, img_merged_lines)
     html.makeRows(html,rows,cols,img_merged_lines,[[0, 0, width, 0]],[[0, height, width, height]])
     html.endHtml()
+    #roiDiv = roi(origin,html.divList[2])
+    #cv2.imshow("roi", roiDiv)
+    img_merged_lines=cv2.resize(img_merged_lines, None, fx=0.7, fy=0.7, interpolation=cv2.INTER_AREA)
     cv2.imshow("result",img_merged_lines)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
