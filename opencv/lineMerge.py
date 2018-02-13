@@ -2,6 +2,7 @@ import cv2
 import math
 import numpy as np
 import random
+import collections
 
 class LineMerge:
     def get_lines(self,lines_in):
@@ -217,6 +218,7 @@ class Html:
         self.divNum=0
         self.divList=[]
         self.rectList=[]
+        self.divCssList=[]
     def startHtml(self, html, css):#input file Name > html, css
         if html !=None:
             self.f.append(open(html+".html", "w"))
@@ -251,31 +253,32 @@ class Html:
         elif height != False:
             return (float(p) / float(height) * 100)
 
-    def divCss(self, id,width,height,plus):
-        r,g,b=str(random.randrange(10,99)),str(random.randrange(10,99)),str(random.randrange(10,99))
-        div="#div"+str(id)+"{\n\t"
-        div += "display:table;\n\t"
-        div += "border-collapse: collapse;\n\t"
-        div += "border:0.1px solid blue;\n\t"
-        #div += "background-color:#"+r+g+b+";\n\t"
-        #div += "padding:-30px;\n\t"
-        div += "width:"+str(width-0.9)+"%;\n\t"
-        div += "height:" + str(height) + "%;\n"
-        if plus != None:
-            div += plus
-        div+="}\n"
-        return div
+    def addDivList(self,id, width, height, etc):
+        div = collections.OrderedDict()
+        div['id'] = id
+        div['width'] = str(width)+"%"
+        div['height'] = str(height)+"%"
+        div['dispaly'] = "table"
+        div['border-collapse'] = "collapse"
+        if etc != None:
+            for dict in etc:
+                for k, v in dict.items():
+                    div[k] = v
+        self.divCssList.append(div)
+
+    def makeCssItem(self,css):
+        text = str(css['id']) + "{\n"
+        for k, v in css.items():
+            if k != "id" and k != "class":
+                text += "\t" + str(k) + " : " + str(v) + ";\n"
+        text += "}\n"
+        return text
 
     def preventOverlap(self,rect):
         for rectL in self.rectList:
             if rect==rectL:
                 return False
-            '''
-            if abs(rect[0][2]-rect[0][0])<self.threshold*2:
-                return False
-            elif abs(rect[0][3]-rect[0][1])<self.threshold*2:
-                return False
-            '''
+
         self.rectList.append(rect)
         print("rect:",rect)
         return True
@@ -283,6 +286,7 @@ class Html:
     def makeCols(self, html,madeRows, cols, img, insertL, appendL):
         th=self.threshold
         inCols=[]
+        fieldSet="<fieldset style=height:82%>"
         width,height= (insertL[0][2]-insertL[0][0]),(appendL[0][3]-insertL[0][3])
         for i, row in enumerate(madeRows):
             rectx1, recty1, rectx2, recty2 = row[0][0], row[0][1], row[0][2], row[0][3]
@@ -307,10 +311,9 @@ class Html:
                     cv2.putText(img, "div"+str(self.divNum), (int(rectx1)+10,int(recty1)+20), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
                                  (255, 0, 0), 2)
 
-                    html.putHtml("<div id=div" + str(self.divNum) + ">"+str(self.divNum)+"</div>\n")
-                    html.putCss(html.divCss(self.divNum, html.mappingP(rectx2-rectx1, width, False),
-                                            html.mappingP(recty2-recty1, False, height), None))
-
+                    html.putHtml("<div id=div" + str(self.divNum) + ">"+fieldSet+str(self.divNum)+"</fieldset></div>\n")
+                    html.addDivList(id="#div"+str(self.divNum), width=html.mappingP(rectx2-rectx1, width, False),
+                                    height=html.mappingP(recty2-recty1, False, height), etc=None)
                     print("div" + str(self.divNum))
                     self.divList.append([["div" + str(self.divNum)],[rectx1,recty1,rectx2,recty2]])
                     html.upDivNum(+1)
@@ -320,8 +323,8 @@ class Html:
                     cv2.line(img, (int(rectx1), int(recty2)), (int(rectx2), int(recty2)), (255, 50, 50), 8)
                     cv2.line(img, (int(rectx1), int(recty2)), (int(rectx2), int(recty2)), (255, 50, 50), 8)
                     html.putHtml("<div id=div" + str(self.divNum) + ">\n")
-                    html.putCss(html.divCss(self.divNum, html.mappingP(rectx2-rectx1, width, False),
-                                            html.mappingP(recty2-recty1, False, height), "\tborder:0px;\n\t"))
+                    html.addDivList(id="#div" + str(self.divNum), width=html.mappingP(rectx2 - rectx1, width, False),
+                                    height=html.mappingP(recty2 - recty1, False, height), etc=[{"border":"0px"}])
                     html.upDivNum(+1)
                     flag=True
 
@@ -349,18 +352,19 @@ class Html:
                         self.makeRows(html, rowGaps, colGaps, img, [[lx1, ly1, rx1, ry1]], [[lx2, ly2, rx2, ry2]])
                         if flag2==True:
                             if lastDiv==self.divNum-1:
-                                html.putCss(html.divCss(lastDiv, html.mappingP(rx1 - lx1, width, False),
-                                                        html.mappingP(height, False, height), "\tfloat: left;\n"))
+                                html.addDivList(id="#div" + str(lastDiv),
+                                                width=html.mappingP(rx1 - lx1, width, False),
+                                                height=html.mappingP(height, False, height), etc=[{"float":"left"}])
                                 cv2.putText(img, "div" + str(lastDiv), (int(lx1) + 10, int(ly1) + 20),
                                             cv2.FONT_HERSHEY_SIMPLEX, 0.5,
                                             (255, 0, 0), 2)
                                 print("div" + str(lastDiv))
-                                html.putHtml(str(lastDiv))
+                                html.putHtml(fieldSet+str(lastDiv)+"</fieldset>")
                                 self.divList.append([["div" + str(lastDiv)], [lx1, ly1, rx2, ry2]])
                             else:
-                                html.putCss(html.divCss(lastDiv, html.mappingP(rx1 - lx1, width, False),
-                                                        html.mappingP(height, False, height), "\tfloat: left;\n\tborder:0px;\n\t"))
-
+                                html.addDivList(id="#div" + str(lastDiv),
+                                                width=html.mappingP(rx1 - lx1, width, False),
+                                                height=html.mappingP(height, False, height), etc=[{"float": "left"},{"border":"0px"}])
                             html.putHtml("</div>\n")
 
                     else:
@@ -370,9 +374,11 @@ class Html:
                             cv2.putText(img, "div" + str(self.divNum), (int(lx1) + 10, int(ly1) + 20),
                                         cv2.FONT_HERSHEY_SIMPLEX, 0.5,
                                         (255, 0, 0), 2)
-                            html.putHtml("<div id=div" + str(self.divNum) + ">"+str(self.divNum)+"</div>\n")
-                            html.putCss(html.divCss(self.divNum, html.mappingP(rx1-lx1,width, False),
-                                                    html.mappingP(height, False, height), "\tfloat: left;\n"))
+                            html.putHtml("<div id=div" + str(self.divNum) + ">"+fieldSet+str(self.divNum)+"</fieldset></div>\n")
+                            html.addDivList(id="#div" + str(self.divNum),
+                                            width=html.mappingP(rx1-lx1,width, False),
+                                            height=html.mappingP(height, False, height), etc=[{"float": "left"}])
+
                             print("div" + str(self.divNum))
                             self.divList.append([["div" + str(self.divNum)], [lx1, ly1, rx2, ry2]])
                             html.upDivNum(+1)
@@ -477,8 +483,12 @@ def main(image_src):
     html = Html(img)
     html.startHtml("test", "test")
     html.makeRows(html,rows,cols,img_merged_lines,[[0, 0, width, 0]],[[0, height, width, height]])
+    tmp=""
+    for i in html.divCssList:
+        tmp += html.makeCssItem(i)
+    html.putCss(tmp)
     html.endHtml()
-    #roiDiv = roi(origin,html.divList[2])
+    roiDiv = roi(origin,html.divList[1])
     #cv2.imshow("roi", roiDiv)
     img_merged_lines=cv2.resize(img_merged_lines, None, fx=0.7, fy=0.7, interpolation=cv2.INTER_AREA)
     cv2.imshow("result",img_merged_lines)
@@ -486,4 +496,4 @@ def main(image_src):
     cv2.destroyAllWindows()
 
 '''-------------------------main------------------------'''
-main('c9.jpg')
+main('test2.jpg')
