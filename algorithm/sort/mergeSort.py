@@ -12,12 +12,10 @@ def merge(left,right):
             tmp.append(right.pop(0))
     return tmp
 
-def mergeSort(arr): 
+def mergeSort(arr):
     if len(arr) <= 1:
         return arr
     mid = len(arr)//2
-    left = arr[:mid]
-    right = arr[mid:]
-    left=mergeSort(left)
-    right=mergeSort(right)
+    left = mergeSort(arr[:mid])
+    right = mergeSort(arr[mid:])
     return merge(left,right)
