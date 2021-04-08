@@ -1,0 +1,12 @@
+def solution(n, s):
+    answer = []
+    v = s//n
+    r = s%n
+    if v==0:
+        return [-1]
+    for i in range(n):
+        answer.append(v)
+    for i in range(r):
+        answer[i] += 1
+    answer.sort()
+    return answer
