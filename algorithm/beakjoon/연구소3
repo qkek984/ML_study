@@ -1,0 +1,53 @@
+from itertools import combinations
+N,M = map(int,input().split())
+lab=[]
+virus=[]
+wall = 0
+for i in range(N):
+    tmp = list(map(int, input().split()))
+    for j in range(N):
+        if tmp[j]==2:
+            virus.append((i,j))
+        elif tmp[j]==1:
+            wall += 1
+    lab.append(tmp)
+aim = (N*N)-wall-(len(virus)-M)
+
+items = [i for i in range(len(virus))]
+combs = list(combinations(items,M))
+dx,dy=(1,-1,0,0),(0,0,1,-1)
+
+answer = 9876543210
+for comb in combs:
+    vnode = {}
+    spread = {}
+    able_v = {}
+    for idx in comb:
+        vnode[virus[idx]] = 1
+        spread[virus[idx]] = 1
+        able_v[virus[idx]] = 1
+    count = 0
+    while spread and aim!=len(vnode):
+        next_spread={}
+        for x,y in spread:
+            for d in range(4):
+                mx,my = x+dx[d], y+dy[d]
+                if (not 0<=mx<N) or (not 0<=my<N) or (lab[mx][my] == 1):
+                    continue
+                elif (mx,my) in vnode:
+                    continue
+                elif lab[mx][my] == 2:
+                    if (mx,my) not in able_v:
+                        next_spread[(mx, my)] = 1
+                        able_v[(mx,my)]=1
+                    continue
+                vnode[(mx,my)]=1
+                next_spread[(mx,my)]=1
+        spread=next_spread
+        count += 1
+    if aim==len(vnode):
+        answer=min(answer,count)
+if answer != 9876543210:
+    print(answer)
+else:
+    print(-1)
